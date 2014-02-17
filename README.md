@@ -6,4 +6,5 @@ SwitchMote
 #Details
 This is just a plate to keep the code. For details, where to purchase, assembly guide, and programming please see the page at: http://lowpowerlab.com/switchmote
 ![SwitchMote](https://v4s.yimg.com/so/7355/12449663565_9ca70b2af3_z.jpg "SwithMote programming through FTDI")
+#Using Putty for initial SwitchMote configuration
 ![Config utility](http://farm4.staticflickr.com/3665/12596245284_a8b8ca934b_o.png "SwithMote configuration utility")
