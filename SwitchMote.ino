@@ -1,10 +1,33 @@
 // *************************************************************************************************************
 //                                          SwitchMote sample sketch
 // *************************************************************************************************************
-// Copyright (c) 2013 by Felix Rusu, LowPowerLab LLC <felix@lowpowerlab.com>
-// CC-BY-NC-SA 3.0 License - http://creativecommons.org/licenses/by-nc-sa/3.0/us/
-// This code is released with no guarantees expressed or implied and LowPowerLab will not be resposible
-//   by how the end user chooses to use this firmware
+// Copyright Felix Rusu (2014), felix@lowpowerlab.com
+// http://lowpowerlab.com/
+// *************************************************************************************************************
+// License
+// *************************************************************************************************************
+// This program is free software; you can redistribute it 
+// and/or modify it under the terms of the GNU General    
+// Public License as published by the Free Software       
+// Foundation; either version 2 of the License, or        
+// (at your option) any later version.                    
+//                                                        
+// This program is distributed in the hope that it will   
+// be useful, but WITHOUT ANY WARRANTY; without even the  
+// implied warranty of MERCHANTABILITY or FITNESS FOR A   
+// PARTICULAR PURPOSE.  See the GNU General Public        
+// License for more details.                              
+//                                                        
+// You should have received a copy of the GNU General    
+// Public License along with this program; if not, write 
+// to the Free Software Foundation, Inc.,                
+// 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+//                                                        
+// Licence can be viewed at                               
+// http://www.fsf.org/licenses/gpl.txt                    
+//
+// Please maintain this license information along with authorship
+// and copyright notices in any redistribution of this code
 // *************************************************************************************************************
 // This sketch assumes the Moteino inside the SwitchMote has been configured using the one time SwitchMoteConfig sketch
 // before it has been installed. See this link for details: http://github.com/lowpowerlab/SwitchMote
@@ -216,9 +239,12 @@ void loop()
     //    listen for another SwMote to broadcast its SYNC token
     if (radio.sendWithRetry(RF69_BROADCAST_ADDR,"SYNC?",5))
     {
-      //DEBUG("GOT SYNC? REPLY: ");
-      //for (byte i = 0; i < radio.DATALEN; i++)
-      //  DEBUG((char)radio.DATA[i]);
+      DEBUG("GOT SYNC? REPLY FROM [");
+      DEBUG(radio.SENDERID);
+      DEBUG(":");DEBUG(radio.DATALEN);DEBUG("]:[");
+      for (byte i = 0; i < radio.DATALEN; i++)
+        DEBUG((char)radio.DATA[i]);
+      DEBUGln(']');
 
       //ACK received, check payload
       if (radio.DATALEN==7 && radio.DATA[0]=='S' && radio.DATA[1]=='Y' && radio.DATA[2]=='N' && radio.DATA[3]=='C' && radio.DATA[5]==':'
@@ -234,19 +260,20 @@ void loop()
       }
       else
       {
-        DEBUG("SYNC ACK mismatch: ");
+        DEBUG("SYNC ACK mismatch: [");
         for (byte i = 0; i < radio.DATALEN; i++)
           DEBUG((char)radio.DATA[i]);
-        DEBUGln();
+        DEBUGln(']');
       }
     }
+    else { DEBUGln("NO SYNC REPLY ..");}
 
     isSyncMode = true;
     DEBUGln("SYNC MODE ON");
     displaySYNC();
     syncStart = now;
   }
-  
+
   //if button held for more than ERASE_TRIGGER, erase SYNC table
   if (isSyncMode==true && btnState == PRESSED && now-btnLastPress[btnIndex] >= ERASE_HOLD && !ignorePress)
   {
@@ -284,6 +311,7 @@ void loop()
     // DO NOT REMOVE, or SwitchMote will not be wirelessly programmable any more!
     CheckForWirelessHEX(radio, flash, true, LED_RM);
 
+    //respond to SYNC request
     if (isSyncMode && radio.DATALEN == 5
         && radio.DATA[0]=='S' && radio.DATA[1]=='Y' && radio.DATA[2]=='N' && radio.DATA[3] == 'C' && radio.DATA[4]=='?')
     {
@@ -296,7 +324,7 @@ void loop()
       return; //continue loop
     }
     
-    //listen for SSR:0 or SSR:1 commands
+    //listen for relay requests: SSR:0 or SSR:1 commands
     if (radio.DATALEN == 5
         && radio.DATA[0]=='S' && radio.DATA[1]=='S' && radio.DATA[2]=='R' && radio.DATA[3] == ':'
         && (radio.DATA[4]=='0' || radio.DATA[4]=='1'))
@@ -315,14 +343,14 @@ void loop()
         && (radio.DATA[3]>='0' && radio.DATA[3]<='2') && (radio.DATA[5]=='0' || radio.DATA[5]=='1'))
     {
       mode[radio.DATA[3]-'0'] = (radio.DATA[5]=='1'?ON:OFF);
-      if (radio.ACK_REQUESTED) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
+      if (radio.ACKRequested()) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
       action(radio.DATA[3]-'0', mode[radio.DATA[3]-'0'], radio.SENDERID!=GATEWAYID);
       //at this point we could call checkSYNC() again to notify the SYNC subscribed SwitchMotes but that could cause a chain reaction
       //so for simplicity sake we are only sending SYNC ON/OFF requests when the physical button is used
       //alternatively a special/aumented ON/OFF packet command could be used to indicate checkSYNC() should be called
     }
 
-    if (radio.ACK_REQUESTED && radio.TARGETID!=RF69_BROADCAST_ADDR) //dont ACK broadcasted messages except in special circumstances (like SYNCing)
+    if (radio.ACKRequested()) //dont ACK broadcasted messages except in special circumstances (like SYNCing)
     {
       radio.sendACK();
       DEBUG(" - ACK sent");
