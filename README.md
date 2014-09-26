@@ -13,3 +13,6 @@ This is just a plate to keep the code. For details, where to purchase, assembly 
 ![SwitchMote](https://v4s.yimg.com/so/7355/12449663565_9ca70b2af3_z.jpg "SwithMote programming through FTDI")
 ####Using Putty for initial SwitchMote configuration:
 ![Config utility](http://farm4.staticflickr.com/3665/12596245284_a8b8ca934b_o.png "SwithMote configuration utility")
+####Schematic for PSU and Shield:
+![PSU Schematic](https://farm4.staticflickr.com/3807/12470755113_e8c02f2c57_c.jpg "SwitchMote PSU Schematic")
+![Shield Schematic](https://farm4.staticflickr.com/3741/12593868393_8b33b20b24_c.jpg "SwitchMote Shield Schematic")
