@@ -20,4 +20,4 @@ This is just a plate to keep the code. For details, where to purchase, assembly 
 ###License
 Any visual content and imaging is [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 <br/>
-Source code license is GPL v2.1 unless otherwise specified, and it should contain a definition and copy of the license individually.
+Source code license is [GPL v2.1](http://www.gnu.org/licenses/lgpl-2.1.html) unless otherwise specified, and it should contain a definition and copy of the license individually.
