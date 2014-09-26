@@ -14,8 +14,8 @@ This is just a plate to keep the code. For details, where to purchase, assembly 
 ####Using Putty for initial SwitchMote configuration:
 ![Config utility](http://farm4.staticflickr.com/3665/12596245284_a8b8ca934b_o.png "SwithMote configuration utility")
 ####Schematic for PSU and Shield:
-![PSU Schematic](https://farm4.staticflickr.com/3807/12470755113_e8c02f2c57_c.jpg "SwitchMote PSU Schematic")
-![Shield Schematic](https://farm4.staticflickr.com/3741/12593868393_8b33b20b24_c.jpg "SwitchMote Shield Schematic")
+![PSU Schematic](https://farm3.staticflickr.com/2913/14305941098_9404f20aeb_c.jpg "SwitchMote PSU Schematic")
+![Shield Schematic](https://farm4.staticflickr.com/3889/14489164051_e30f8e57d0_c.jpg "SwitchMote Shield Schematic")
 
 ###License
 Any visual content and imaging is [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
