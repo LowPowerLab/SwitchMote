@@ -16,3 +16,8 @@ This is just a plate to keep the code. For details, where to purchase, assembly 
 ####Schematic for PSU and Shield:
 ![PSU Schematic](https://farm4.staticflickr.com/3807/12470755113_e8c02f2c57_c.jpg "SwitchMote PSU Schematic")
 ![Shield Schematic](https://farm4.staticflickr.com/3741/12593868393_8b33b20b24_c.jpg "SwitchMote Shield Schematic")
+
+###License
+Any visual content and imaging is [CC-BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+<br/>
+Source code license is GPL v2.1 unless otherwise specified, and it should contain a definition and copy of the license individually.
