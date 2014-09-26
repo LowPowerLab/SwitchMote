@@ -1,7 +1,7 @@
 SwitchMote
 ==========
 
-[**SwitchMote**](http://lowpowerlab.com/switchmote) is a wireless light switch controller that replaces traditional mechanical switches and allows you to wireleslly control a light AC load (ie lights up to ~100W). SwitchMotes can be independent of each other or they can be linked in such a way that when a button is pressed one or more SwitchMotes can turn their loads ON/OFF.
+[**SwitchMote**](http://lowpowerlab.com/switchmote) is a wireless light switch controller that replaces traditional mechanical switches and allows you to wireleslly control a light AC load (ie lights up to 5A@250V). SwitchMotes can be independent of each other or they can be linked in such a way that when a button is pressed one or more other SwitchMotes can turn their loads ON/OFF in a synchronized fashion. For instance I like to turn the lights in front of my garage without having to go to the switch located in the laundry, and so I replaced that switch with a SM and synch it with another SM that is conveniently located inside the house. Now I can turn on my garage lights more conveniently. Also, 3-way circuits are easily wired using SwitchMote.
 
 ###Action videos:
 #####See it in action: http://www.youtube.com/watch?v=2T8Hk-uWxVw
