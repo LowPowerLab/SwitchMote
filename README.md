@@ -10,7 +10,8 @@ SwitchMote
 
 #Details
 This is just a plate to keep the code. For details, where to purchase, assembly guide, and programming please see the page at: http://lowpowerlab.com/switchmote
-![SwitchMote](https://farm6.staticflickr.com/5074/14305862867_8b30a9c84a_c.jpg "SwithMote programming through FTDI")
+
+![SwitchMote](https://farm3.staticflickr.com/2933/14617584477_821fe7d45b_z.jpg "SwithMote programming through FTDI")
 ####Using Putty for initial SwitchMote configuration:
 ![Config utility](http://farm4.staticflickr.com/3665/12596245284_a8b8ca934b_o.png "SwithMote configuration utility")
 ####Schematic for PSU and Shield:
