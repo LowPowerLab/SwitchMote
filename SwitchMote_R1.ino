@@ -1,34 +1,10 @@
 // *************************************************************************************************************
 //                                          SwitchMote sample sketch
 // *************************************************************************************************************
-// Handles the original single 5A relay SwitchMote, as well as the dual 10A relay SwitchMote2x10A
-// http://lowpowerlab.com/switchmote
-// Copyright Felix Rusu (2015), felix@lowpowerlab.com
-// *************************************************************************************************************
-// License
-// *************************************************************************************************************
-// This program is free software; you can redistribute it 
-// and/or modify it under the terms of the GNU General    
-// Public License as published by the Free Software       
-// Foundation; either version 2 of the License, or        
-// (at your option) any later version.                    
-//                                                        
-// This program is distributed in the hope that it will   
-// be useful, but WITHOUT ANY WARRANTY; without even the  
-// implied warranty of MERCHANTABILITY or FITNESS FOR A   
-// PARTICULAR PURPOSE.  See the GNU General Public        
-// License for more details.                              
-//                                                        
-// You should have received a copy of the GNU General    
-// Public License along with this program; if not, write 
-// to the Free Software Foundation, Inc.,                
-// 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
-//                                                        
-// Licence can be viewed at                               
-// http://www.fsf.org/licenses/gpl.txt                    
-//
-// Please maintain this license information along with authorship
-// and copyright notices in any redistribution of this code
+// Copyright (c) 2013 by Felix Rusu, LowPowerLab LLC <felix@lowpowerlab.com>
+// CC-BY-NC-SA 3.0 License - http://creativecommons.org/licenses/by-nc-sa/3.0/us/
+// This code is released with no guarantees expressed or implied and LowPowerLab will not be resposible
+//   by how the end user chooses to use this firmware
 // *************************************************************************************************************
 // This sketch assumes the Moteino inside the SwitchMote has been configured using the one time SwitchMoteConfig sketch
 // before it has been installed. See this link for details: http://github.com/lowpowerlab/SwitchMote
@@ -42,7 +18,7 @@
 // This sketch will provide the essential features of SwitchMote
 //   - wireless programming
 //   - accept ON/OFF commands from a Moteino gateway
-//   - control the relay(s) to turn the AC load ON/OFF
+//   - control the optional solid state relay (SSR) to turn a small AC load ON/OFF (up to 100W)
 //   - control up to 6 LEDs and 3 buttons
 //   - SYNC feature allows out of box synchronization with other SwitchMotes
 //     ie - when a button is pressed on this unit it can simulate the press of another button on a remote SwitchMote
@@ -51,6 +27,7 @@
 // This sketch may be extended to include integration with other LowPowerLab automation products, for instance to
 //    control the GarageMote from a button on the SwitchMote, etc.
 // *************************************************************************************************************
+
 #include <EEPROMex.h>      //get it here: http://playground.arduino.cc/Code/EEPROMex
 #include <RFM69.h>         //get it here: http://github.com/lowpowerlab/rfm69
 #include <SPIFlash.h>      //get it here: http://github.com/lowpowerlab/spiflash
@@ -64,17 +41,13 @@
 #define LED_GT             19  //digital pin for TOP GREEN LED
 #define LED_RB             14  //digital pin for BOTTOM RED LED
 #define LED_GB             17  //digital pin for BOTTOM GREEN LE
-
-#define RELAY1              7  //digital pin connected to MAIN relay
-#define RELAY2              3  //digital pin connected to secondary relay (SwitchMote 2x10A only)
-#define RELAY1_INDEX        1  //index in btn[] array which is associated with the MAIN relay
-#define RELAY2_INDEX        0  //index in btn[] array which is associated with the secondary relay (SwitchMote 2x10A only)
-//#define BTNINDEX_SSR        1  //DEPRECATED - index in btn[] array which is associated with the SolidStateRelay (SSR)
+#define SSR                 7  //digital pin connected to Solid State Relay (SSR)
 
 #define BTNCOUNT            3  //1 or 3 (2 also possible)
 #define BTNM                5  //digital pin of middle button
 #define BTNT                6  //digital pin of top button
 #define BTNB                4  //digital pin of bottom button
+#define BTNINDEX_SSR        1  //index in btn[] array which is associated with the SolidStateRelay (SSR)
 
 #define BUTTON_BOUNCE_MS  200  //timespan before another button change can occur
 #define SYNC_ENTER       3000  //time required to hold a button before SwitchMote enters [SYNC mode]
@@ -88,7 +61,6 @@
 #define SYNC_DIGIT_THISMODE 1 //second digit indicates the mode of this unit is in when triggering
 #define SYNC_DIGIT_SYNCBTN  2 //third digit indicates the button that should be requested to be "pressed" on the target
 #define SYNC_DIGIT_SYNCMODE 3 //fourth digit indicates the mode that should be requested on the target
-#define SYNC_MIN_TIME_LIMIT 2000 //minimum time limit since last SYNC before a new sync can be propagated (used to stop circular SYNC loops)
 
 #define SERIAL_EN             //comment this out when deploying to an installed SM to save a few KB of sketch size
 #define SERIAL_BAUD    115200
@@ -139,15 +111,12 @@ RFM69 radio;
 long syncStart=0;
 long now=0;
 byte btnIndex=0; // as the sketch loops this index will loop through the available physical buttons
-byte mode[] = {ON,ON,ON}; //could use single bytes for efficiency but keeping it separate for clarity
+byte mode[] = {OFF,OFF,OFF}; //could use single bytes for efficiency but keeping it separate for clarity
 byte btn[] = {BTNT, BTNM, BTNB};
 byte btnLastState[]={RELEASED,RELEASED,RELEASED};
 unsigned long btnLastPress[]={0,0,0};
 byte btnLEDRED[] = {LED_RT, LED_RM, LED_RB};
 byte btnLEDGRN[] = {LED_GT, LED_GM, LED_GB};
-
-uint32_t lastSYNC=0; //remember last status change - used to detect & stop loop conditions in circular SYNC scenarios
-
 char * buff="justAnEmptyString";
 
 void setup(void)
@@ -197,16 +166,15 @@ void setup(void)
   pinMode(BTNM, INPUT);digitalWrite(BTNM, HIGH); //activate pullup
   pinMode(BTNT, INPUT);digitalWrite(BTNT, HIGH); //activate pullup
   pinMode(BTNB, INPUT);digitalWrite(BTNB, HIGH); //activate pullup
-  pinMode(RELAY1, OUTPUT);
-  pinMode(RELAY2, OUTPUT);
+  pinMode(SSR, OUTPUT);
   blinkLED(LED_RM,LED_PERIOD_ERROR,LED_PERIOD_ERROR,3);
   delay(500);
   DEBUGln("\r\nListening for ON/OFF commands...\n");
 
   //initialize LEDs according to default modes
-  action(btnIndex, OFF, false);btnIndex++;
-  action(btnIndex, OFF, false);btnIndex++;
-  action(btnIndex, OFF, false);
+  action(btnIndex, mode[btnIndex], false);btnIndex++;
+  action(btnIndex, mode[btnIndex], false);btnIndex++;
+  action(btnIndex, mode[btnIndex], false);
 }
 
 byte btnState=RELEASED;
@@ -228,12 +196,12 @@ void loop()
     btnLastState[btnIndex] = btnState;
     if (btnState == PRESSED) btnLastPress[btnIndex] = now;    
 
-    //if normal button press, do the RELAY/LED action and notify sync-ed SwitchMotes
+    //if normal button press, do the SSR/LED action and notify sync-ed SwitchMotes
     if (btnState == RELEASED && !isSyncMode)
     {
       ignorePress=false;
       action(btnIndex, mode[btnIndex]==ON ? OFF : ON);
-      checkSYNC(0);
+      checkSYNC();
     }
   }
 
@@ -248,12 +216,9 @@ void loop()
     //    listen for another SwMote to broadcast its SYNC token
     if (radio.sendWithRetry(RF69_BROADCAST_ADDR,"SYNC?",5))
     {
-      DEBUG("GOT SYNC? REPLY FROM [");
-      DEBUG(radio.SENDERID);
-      DEBUG(":");DEBUG(radio.DATALEN);DEBUG("]:[");
-      for (byte i = 0; i < radio.DATALEN; i++)
-        DEBUG((char)radio.DATA[i]);
-      DEBUGln(']');
+      //DEBUG("GOT SYNC? REPLY: ");
+      //for (byte i = 0; i < radio.DATALEN; i++)
+      //  DEBUG((char)radio.DATA[i]);
 
       //ACK received, check payload
       if (radio.DATALEN==7 && radio.DATA[0]=='S' && radio.DATA[1]=='Y' && radio.DATA[2]=='N' && radio.DATA[3]=='C' && radio.DATA[5]==':'
@@ -269,20 +234,19 @@ void loop()
       }
       else
       {
-        DEBUG("SYNC ACK mismatch: [");
+        DEBUG("SYNC ACK mismatch: ");
         for (byte i = 0; i < radio.DATALEN; i++)
           DEBUG((char)radio.DATA[i]);
-        DEBUGln(']');
+        DEBUGln();
       }
     }
-    else { DEBUGln("NO SYNC REPLY ..");}
 
     isSyncMode = true;
     DEBUGln("SYNC MODE ON");
     displaySYNC();
     syncStart = now;
   }
-
+  
   //if button held for more than ERASE_TRIGGER, erase SYNC table
   if (isSyncMode==true && btnState == PRESSED && now-btnLastPress[btnIndex] >= ERASE_HOLD && !ignorePress)
   {
@@ -310,9 +274,8 @@ void loop()
   //check if any packet received
   if (radio.receiveDone())
   {
-    byte senderID = radio.SENDERID;
     DEBUGln();
-    DEBUG("[");DEBUG(senderID);DEBUG("] ");
+    DEBUG("[");DEBUG(radio.SENDERID);DEBUG("] ");
     for (byte i = 0; i < radio.DATALEN; i++)
       DEBUG((char)radio.DATA[i]);
     DEBUG(" [RX_RSSI:");DEBUG(radio.RSSI);DEBUG("]");
@@ -321,7 +284,6 @@ void loop()
     // DO NOT REMOVE, or SwitchMote will not be wirelessly programmable any more!
     CheckForWirelessHEX(radio, flash, true, LED_RM);
 
-    //respond to SYNC request
     if (isSyncMode && radio.DATALEN == 5
         && radio.DATA[0]=='S' && radio.DATA[1]=='Y' && radio.DATA[2]=='N' && radio.DATA[3] == 'C' && radio.DATA[4]=='?')
     {
@@ -334,50 +296,33 @@ void loop()
       return; //continue loop
     }
     
+    //listen for SSR:0 or SSR:1 commands
+    if (radio.DATALEN == 5
+        && radio.DATA[0]=='S' && radio.DATA[1]=='S' && radio.DATA[2]=='R' && radio.DATA[3] == ':'
+        && (radio.DATA[4]=='0' || radio.DATA[4]=='1'))
+    {
+      mode[BTNINDEX_SSR] = radio.DATA[4]=='1'?ON:OFF;
+      if (radio.ACK_REQUESTED) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
+      action(BTNINDEX_SSR, mode[BTNINDEX_SSR], radio.SENDERID!=GATEWAYID);
+      //at this point we could call checkSYNC() again to notify the SYNC subscribed SwitchMotes but that could cause a chain reaction
+      //so for simplicity sake we are only sending SYNC ON/OFF requests when the physical button is used
+      //alternatively a special/aumented ON/OFF packet command could be used to indicate checkSYNC() should be called
+    }
+    
     //listen for BTNx:y commands where x={0,1,2}, y={0,1}
     if (radio.DATALEN == 6
         && radio.DATA[0]=='B' && radio.DATA[1]=='T' && radio.DATA[2]=='N' && radio.DATA[4] == ':'
         && (radio.DATA[3]>='0' && radio.DATA[3]<='2') && (radio.DATA[5]=='0' || radio.DATA[5]=='1'))
     {
-      if (radio.ACKRequested()) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
-      btnIndex = radio.DATA[3]-'0';
-      action(btnIndex, (radio.DATA[5]=='1'?ON:OFF), true); //requester!=GATEWAYID);
-      checkSYNC(senderID);
-      //at this point we could call checkSYNC() again to notify the SYNC subscribed SwitchMotes but that could cause a circular chain reaction
+      mode[radio.DATA[3]-'0'] = (radio.DATA[5]=='1'?ON:OFF);
+      if (radio.ACK_REQUESTED) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
+      action(radio.DATA[3]-'0', mode[radio.DATA[3]-'0'], radio.SENDERID!=GATEWAYID);
+      //at this point we could call checkSYNC() again to notify the SYNC subscribed SwitchMotes but that could cause a chain reaction
       //so for simplicity sake we are only sending SYNC ON/OFF requests when the physical button is used
-      //alternatively a special/augmented ON/OFF packet command could be used to indicate checkSYNC() should be called
+      //alternatively a special/aumented ON/OFF packet command could be used to indicate checkSYNC() should be called
     }
-    
-    
-//    //******************** DEPRECATED COMMANDS START *************************
-//    //******************** These commands are supported for legacy reasons but going forward only BTNn:1/0 commands should be used
-//    //listen for relay requests: SSR:0 or SSR:1 commands
-//    if (radio.DATALEN == 5
-//        && radio.DATA[0]=='S' && radio.DATA[1]=='S' && radio.DATA[2]=='R' && radio.DATA[3] == ':'
-//        && (radio.DATA[4]=='0' || radio.DATA[4]=='1'))
-//    {
-//      if (radio.ACK_REQUESTED) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
-//      action(BTNINDEX_SSR, (radio.DATA[4]=='1'?ON:OFF), radio.SENDERID!=GATEWAYID);
-//      //at this point we could call checkSYNC() again to notify the SYNC subscribed SwitchMotes but that could cause a chain reaction
-//      //so for simplicity sake we are only sending SYNC ON/OFF requests when the physical button is used
-//      //alternatively a special/aumented ON/OFF packet command could be used to indicate checkSYNC() should be called
-//    }
-//    
-//    //listen for relay requests: RLYn:0 or RLYn:1 commands (n = 1,2)
-//    if (radio.DATALEN == 6
-//        && radio.DATA[0]=='R' && radio.DATA[1]=='L' && radio.DATA[2]=='Y' && radio.DATA[4] == ':'
-//        && (radio.DATA[3]=='1' || radio.DATA[3]=='2') && (radio.DATA[5]=='0' || radio.DATA[5]=='1'))
-//    {
-//      if (radio.ACK_REQUESTED) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
-//      action((radio.DATA[3]=='1'?RELAY1_INDEX:RELAY2_INDEX), (radio.DATA[5]=='1'?ON:OFF), radio.SENDERID!=GATEWAYID);
-//      //at this point we could call checkSYNC() again to notify the SYNC subscribed SwitchMotes but that could cause a chain reaction
-//      //so for simplicity sake we are only sending SYNC ON/OFF requests when the physical button is used
-//      //alternatively a special/aumented ON/OFF packet command could be used to indicate checkSYNC() should be called
-//    }
-//    //******************** DEPRECATED COMMANDS END *************************
 
-
-    if (radio.ACKRequested()) //dont ACK broadcasted messages except in special circumstances (like SYNCing)
+    if (radio.ACK_REQUESTED && radio.TARGETID!=RF69_BROADCAST_ADDR) //dont ACK broadcasted messages except in special circumstances (like SYNCing)
     {
       radio.sendACK();
       DEBUG(" - ACK sent");
@@ -396,31 +341,21 @@ void action(byte whichButtonIndex, byte whatMode, boolean notifyGateway)
   DEBUG(" - ");
   DEBUG(btn[whichButtonIndex]==BTNT?"TOP:":btn[whichButtonIndex]==BTNM?"MAIN:":btn[whichButtonIndex]==BTNB?"BOTTOM:":"UNKNOWN");
   DEBUG(whatMode==ON?"ON ":"OFF");
-
-//  if (mode[whichButtonIndex] != whatMode) //take action only if the button state has changed
-//  {
-    mode[whichButtonIndex] = whatMode;
-
-    //change LEDs and relay states
-    digitalWrite(btnLEDRED[whichButtonIndex], whatMode == ON ? LOW : HIGH);
-    digitalWrite(btnLEDGRN[whichButtonIndex], whatMode == ON ? HIGH : LOW);
-    if (whichButtonIndex==RELAY1_INDEX)
-      digitalWrite(RELAY1, whatMode == ON ? HIGH : LOW);
-    if (whichButtonIndex==RELAY2_INDEX)
-      digitalWrite(RELAY2, whatMode == ON ? HIGH : LOW);    //SwitchMote2x10A has 2 10A relays
-
-    //notify gateway
-    if (notifyGateway)
-    {
+  mode[whichButtonIndex] = whatMode;
+  digitalWrite(btnLEDRED[whichButtonIndex], whatMode == ON ? LOW : HIGH);
+  digitalWrite(btnLEDGRN[whichButtonIndex], whatMode == ON ? HIGH : LOW);
+  if (whichButtonIndex==BTNINDEX_SSR)
+    digitalWrite(SSR, whatMode == ON ? HIGH : LOW);
+  if (notifyGateway)
+  {
+    if (btnIndex==BTNINDEX_SSR)
+      sprintf(buff, "SSR:%d",whatMode);
+    else
       sprintf(buff, "BTN%d:%d", whichButtonIndex,whatMode);
-      if (radio.sendWithRetry(GATEWAYID, buff, strlen(buff)))
-        {DEBUGln("..OK");}
-      else {DEBUGln("..NOK");}
-    }
-    
-    //notify SYNC-ed SwitchMotes of change
-    //checkSYNC();
-//  }
+    if (radio.sendWithRetry(GATEWAYID, buff, strlen(buff)))
+      {DEBUGln("..OK");}
+    else {DEBUGln("..NOK");}
+  }
 }
 
 long blinkLastCycle=0;
@@ -479,11 +414,11 @@ boolean addSYNC(byte targetAddr, byte targetButton, byte targetMode)
 }
 
 //checks the SYNC table for any necessary requests to other SwitchMotes
-boolean checkSYNC(byte nodeIDToSkip)
+boolean checkSYNC()
 {
   for (byte i=0; i < SYNC_MAX_COUNT; i++)
   {
-    if (SYNC_TO[i]!=0 && SYNC_TO[i]!=nodeIDToSkip && getDigit(SYNC_INFO[i],SYNC_DIGIT_THISBTN)==btnIndex && getDigit(SYNC_INFO[i],SYNC_DIGIT_THISMODE)==mode[btnIndex])
+    if (SYNC_TO[i]!=0 && getDigit(SYNC_INFO[i],SYNC_DIGIT_THISBTN)==btnIndex && getDigit(SYNC_INFO[i],SYNC_DIGIT_THISMODE)==mode[btnIndex])
     {
       DEBUGln();
       DEBUG(" SYNC[");
