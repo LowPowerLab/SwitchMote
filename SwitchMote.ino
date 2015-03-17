@@ -82,6 +82,7 @@
 #define SYNC_MAX_COUNT     10  //max number of SYNC entries (increase for more interactions)
 #define SYNC_EEPROM_ADDR   64  //SYNC_TO and SYNC_INFO data starts at this EEPROM address
 #define ERASE_HOLD       6000  //time required to hold a button before SYNC data is erased
+#define MOTION_TIME_ON  60000  //time to hold a button/output HIGH after a motion triggered command
 
 //in SYNC_INFO we're storing 4 pieces of information in each byte:
 #define SYNC_DIGIT_THISBTN  0 //first digit is the button pressed on this unit which will trigger an action on another unit
@@ -120,13 +121,11 @@ struct configuration {
   //byte DEBUG?
 } CONFIG;
 
-void action(byte whichButtonIndex, byte whatMode, boolean notifyGateway=true); //compiler wants this prototype here because of the optional parameter
-/////////////////////////////////////////////////////////////////////////////
-// flash(SPI_CS, MANUFACTURER_ID)
-// SPI_CS          - CS pin attached to SPI flash chip (8 in case of Moteino)
-// MANUFACTURER_ID - OPTIONAL, 0xEF30 for windbond 4mbit flash (Moteino OEM)
-/////////////////////////////////////////////////////////////////////////////
-SPIFlash flash(8, 0xEF30);
+// *************************************************************************************************************
+//compiler wants these function prototype here because of the optional parameter(s)
+void action(byte whichButtonIndex, byte whatMode, boolean notifyGateway=true);
+boolean checkSYNC(byte nodeIDToSkip=0);
+// *************************************************************************************************************
 //SYNC data is stored in 2 arrays:
 byte SYNC_TO[SYNC_MAX_COUNT];  // stores the address of the remote SM(s) that this SM has to notify/send request to
 int SYNC_INFO[SYNC_MAX_COUNT]; // stores the buttons and modes of this and the remote SM as last 4 digits:
@@ -136,8 +135,9 @@ int SYNC_INFO[SYNC_MAX_COUNT]; // stores the buttons and modes of this and the r
                                //   - remote SM mode (0,1) = most significant digit (SYNC_DIGIT_SYNCMODE=3)
                                // the 4 pieces of information require an int (a byte only has up to 3 digits)
 RFM69 radio;
-long syncStart=0;
-long now=0;
+SPIFlash flash(8, 0xEF30);     //FLASH MEM CS pin is wired to Moteino D8
+unsigned long syncStart=0;
+unsigned long now=0;
 byte btnIndex=0; // as the sketch loops this index will loop through the available physical buttons
 byte mode[] = {ON,ON,ON}; //could use single bytes for efficiency but keeping it separate for clarity
 byte btn[] = {BTNT, BTNM, BTNB};
@@ -145,9 +145,7 @@ byte btnLastState[]={RELEASED,RELEASED,RELEASED};
 unsigned long btnLastPress[]={0,0,0};
 byte btnLEDRED[] = {LED_RT, LED_RM, LED_RB};
 byte btnLEDGRN[] = {LED_GT, LED_GM, LED_GB};
-
 uint32_t lastSYNC=0; //remember last status change - used to detect & stop loop conditions in circular SYNC scenarios
-
 char * buff="justAnEmptyString";
 
 void setup(void)
@@ -212,6 +210,8 @@ void setup(void)
 byte btnState=RELEASED;
 boolean isSyncMode=0;
 boolean ignorePress=false;
+unsigned long int offTimer=0;
+byte offIndex=0;
 void loop()
 {
   //on each loop pass check the next button
@@ -343,12 +343,25 @@ void loop()
       btnIndex = radio.DATA[3]-'0';
       action(btnIndex, (radio.DATA[5]=='1'?ON:OFF), true); //requester!=GATEWAYID);
       checkSYNC(senderID);
-      //at this point we could call checkSYNC() again to notify the SYNC subscribed SwitchMotes but that could cause a circular chain reaction
-      //so for simplicity sake we are only sending SYNC ON/OFF requests when the physical button is used
-      //alternatively a special/augmented ON/OFF packet command could be used to indicate checkSYNC() should be called
     }
     
-    
+    //listen for MOT:x commands where x={0,1,2} - motion activated command to turn ON a button/relay (timed ON)
+    if (radio.DATALEN == 5
+        && radio.DATA[0]=='M' && radio.DATA[1]=='O' && radio.DATA[2]=='T' && radio.DATA[3] == ':'
+        && (radio.DATA[4]>='0' && radio.DATA[4]<='2'))
+    {
+      if (radio.ACKRequested()) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
+      btnIndex = radio.DATA[4]-'0';
+      //if(mode[btnIndex] != ON) //if a light is already ON, ignore MOTION triggered commands and do nothing, uncomment this line to 
+      offTimer = millis();
+      offIndex = btnIndex;
+      if(mode[btnIndex] != ON) //only take action when mode is not already ON
+      {
+        action(btnIndex, ON, true);
+        checkSYNC(senderID);
+      }
+    }
+
 //    //******************** DEPRECATED COMMANDS START *************************
 //    //******************** These commands are supported for legacy reasons but going forward only BTNn:1/0 commands should be used
 //    //listen for relay requests: SSR:0 or SSR:1 commands
@@ -376,12 +389,23 @@ void loop()
 //    }
 //    //******************** DEPRECATED COMMANDS END *************************
 
-
     if (radio.ACKRequested()) //dont ACK broadcasted messages except in special circumstances (like SYNCing)
     {
       radio.sendACK();
       DEBUG(" - ACK sent");
       delay(5);
+    }
+  }
+  
+  //check if a motion command timer expired and the corresponding light can turn off    
+  if ((offTimer > 0) && (millis() - offTimer > MOTION_TIME_ON))
+  {
+    offTimer = 0;
+    if(mode[offIndex] != OFF)
+    {
+      DEBUGln("OffTimer expired, turning off");
+      action(offIndex, OFF, true);
+      checkSYNC(0);
     }
   }
 }
