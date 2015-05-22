@@ -341,7 +341,7 @@ void loop()
     {
       if (radio.ACKRequested()) radio.sendACK(); //send ACK sooner when a ON/OFF + ACK is requested
       btnIndex = radio.DATA[3]-'0';
-      action(btnIndex, (radio.DATA[5]=='1'?ON:OFF), true); //requester!=GATEWAYID);
+      action(btnIndex, (radio.DATA[5]=='1'?ON:OFF), senderID!=GATEWAYID);
       checkSYNC(senderID);
     }
     
@@ -357,7 +357,7 @@ void loop()
       offIndex = btnIndex;
       if(mode[btnIndex] != ON) //only take action when mode is not already ON
       {
-        action(btnIndex, ON, true);
+        action(btnIndex, ON, senderID!=GATEWAYID);
         checkSYNC(senderID);
       }
     }
@@ -393,7 +393,7 @@ void loop()
     {
       radio.sendACK();
       DEBUG(" - ACK sent");
-      delay(5);
+      //delay(5);
     }
   }
   
